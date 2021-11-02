@@ -217,3 +217,64 @@ CE data in Step B?**
 
 Compared to the untransformed CE data in Step A, the transformed CE data in Step B appear to be relatively more normal and variance near equal across groups.
 
+
+# Step C:
+
+
+**1) Another way to proceed when the focus is the difference in the means themselves, not the 
+means of a transformed value, is to use regression to estimate the means but to use bootstrapping 
+to get more appropriate standard errors that do not depend on the normal and equal variance 
+assumptions.**
+
+
+```{r}
+require(boot)
+
+# function to obtain regression coefficients
+bs <- function(formula, data, indices) {
+          d = data[indices,] # allows boot to select sample 
+          fit = lm(formula, data=d)
+          return(coef(fit)) 
+}
+
+# bootstrapping with 250 replications 
+results = boot(data = ce621, statistic = bs,
+               R=250, formula=totchg~agegen)
+
+# view results
+results
+```
+
+
+**Here, we are drawing a random sample with replacement of the original CE cases, doing the 
+regression of totchg on agegen and saving the coefficients. This process is repeated 250 times.
+Here, we are drawing a random sample with replacement of the original CE cases, doing the 
+regression of totchg on agegen and saving the coefficients. This process is repeated 250 times.**
+
+
+**2) Compare the bootstrap standard errors and confidence intervals with the ones from the 
+original regression analysis. These are more valid when the assumptions are so strongly violated.**
+
+
+```{r}
+# get 95% confidence intervals from the bootstrap
+boot.ci(results, type="norm", index=1) # intercept (f <=60)
+boot.ci(results, type="norm", index=2) # f >60
+boot.ci(results, type="norm", index=3) # m <=60
+boot.ci(results, type="norm", index=4) # m >60
+
+# get 95% confidence intervals from the regression model
+confint(model1)
+```
+
+
+**3) Write a brief paragraph describing the differences in the distribution of expenditures among 
+the four groups. Be numerate, focus on the mean expenditures, use confidence intervals and/or 
+tests and discuss the differences in spread and shape as appropriate.**
+
+
+The mean expenditures is highest in female age less than or equal to 60 (reference group), followed by female age greater than 60, male age greater than 60, with least expenditures in male age less than or equal to 60. However, the differences are not statistical significant, which is based on the evidence that : 1) p-value for the overall differences F-statistics, 2) p-value for the differences between pairs of gender and age of the t-statistics, 3) bootstrap interval of the mean difference of all three groups pass the null value 0 compared to the reference group.
+
+
+The distribution of all subgroups are right-skewed, with the spread of the distribution highest in female age less than or equal to 60, followed by female age greater than 60, male age greater than 60, with least spread in male age less than or equal to 60, which is based on the box plots of untransformed values.
+
