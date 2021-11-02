@@ -1,0 +1,219 @@
+---
+title: "Problem Set 1"
+author: "Zhengting (Johnathan) He"
+date: "2021/11/1"
+output: html_document
+---
+
+```{r "setup", include = FALSE}
+require("knitr")
+opts_knit$set(root.dir = "D:/OneDrive - Johns Hopkins/Course/140.622.81 - Statistical Methods in Public Health II/Problem Set/jhsphbiostat622-assignment/Problem Set 1")
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+setwd("D:/OneDrive - Johns Hopkins/Course/140.622.81 - Statistical Methods in Public Health II/Problem Set/jhsphbiostat622-assignment/Problem Set 1")
+
+require(tidyverse)
+require(gtsummary)
+```
+
+
+# Step A: 
+
+
+**1) Create a new variable, `agegen`, to indicate the four age-gender groups.**
+
+
+```{r, message = FALSE}
+ce621 <- read_csv("./data/ce621.csv")
+```
+
+
+```{r}
+ce621 <-
+    ce621 %>%   # start with the original data, the create subgrups
+    mutate(agegen = case_when(sex == "Male" & age <= 60 ~ "m <=60", 
+                              sex == "Female" & age <= 60 ~ "f <=60",
+                              sex == "Male" & age > 60 ~ "m >60",
+                              sex=="Female" & age > 60 ~ "f >60"))
+```
+
+
+**2) Inspect the data using side-by-side box plots:**
+
+
+```{r}
+ce621 %>%
+    mutate(agegen = factor(agegen, levels = c("f <=60", "f >60", "m <=60", "m >60"))) %>%
+    ggplot(aes(x = agegen, y = totchg, fill = agegen)) +
+    stat_boxplot(geom = "errorbar", width = 0.2) +
+    geom_boxplot(aes(fill = agegen)) +
+    xlab("Gender and age") +
+    ylab("Total charges in dollars") +
+    scale_x_discrete(labels = c("Female, age <= 60", "Female, age > 60", "Male, age <=60", "Male, age > 60")) +
+    scale_fill_manual(values = c("#0ebeff", "#47cf73", "#ae63e4", "#fcd000"),
+                      guide = "none") +
+    theme_bw()
+```
+
+
+**3) Now use the data to perform a linear regression of total charges on the age-gender groups to 
+partition the total variability as displayed in the analysis of variance (ANOVA) table for 
+regression. The ratio of the regression sum of squares to the error sum of squares provides the F
+ratio which can be used to test the null hypothesis that the four population means are the same.**
+
+
+***Linear model***
+
+
+```{r}
+model1 <- lm(totchg ~ as.factor(agegen), data=ce621)
+anova(model1)
+summary(model1)
+```
+
+
+***Generalized linear model***
+
+```{r}
+model2 <- glm(totchg ~ as.factor(agegen), data = ce621, 
+              family = gaussian(link="identity"))
+anova(model2)
+summary(model2)
+```
+
+
+**4) Interpret each of the regression coefficients. Using regression, how do you test the overall 
+hypothesis of no group differences? What is the difference between the results of the `lm` and 
+`glm` commands?**
+
+
+***1. Interpretation of regression coefficient***
+
++ $\hat{\beta_0}$ = 8321.0: the mean of total charges in dollars is 8321.0 among women age less than or equal to 60 (*reference group*).
+
++ $\hat{\beta_1}$ = -267.1 for female age greater than 60 group: the mean of total charges in dollars in female age greater than 60 group is 267.1 less than women age less than or equal to 60 (*reference group*).
+
++ $\hat{\beta_1}$ = -3492.3 for male age less than or equal to 60 group: the mean of total charges in dollars in male age less than or equal to 60 group is 3492.3 less than women age less than or equal to 60 (*reference group*).
+
++ $\hat{\beta_1}$ = -1653.0 for male age greater than 60 group: the mean of total charges in dollars in male age greater than 60 group is 1653.0 less than women age less than or equal to 60 (*reference group*).
+
+***2. Test the overall null hypothesis of no group differences***
+
++ $F_{obs}$ = 1.9412 on 3 and 196 degrees of freedom, and $p-value$ = 0.1242, fail to reject $H_0$ under significance level of $\alpha$ = 0.05, and conclude that there are no statistical significant differences of the mean of total charges in dollars between groups.
+
+***3. Difference between the results of the `lm` and `glm` commands***
+
++ `glm` is an umbrella function of `lm`. There are no systematic differences between the results of `glm` and `lm` in this case, however `glm` always assumes large sample size and apply central limit theorm, and use $Z$ test instead of $t$ test, which is less conservative, it can affect the results when the sample size is small.
+
+
+**5) Summarize your findings with respect to CE costs as a function of age and gender, as if for a 
+health services journal.**
+
+
+The mean CE costs is 8321.0 dollars in female age less than or equal to 60. Using this group as the reference group, the differences of the mean CE costs in female age greater than 60, in male age less than or equal to 60, in male age greater than 60, is -267.1, -3492.3, -1653.0, respectively. These results indicate the mean CE costs is highest in female age less than or equal to 60, follow by female age greater than 60, male age greater than 60, while lowest in male age greater than 60. However, based on the F-statistics and p-value, the differences of the mean CE costs between all groups are not statistical significant.
+
+
+# Step B:
+
+
+Recall that two assumptions of the linear regression are:
+
++ Observations within a group are approximately normally distributed.
+
++ The within-group variance is the same across all groups.
+
+
+**1) Inspect your box plots from Step A and notice whether the observations are approximately 
+normal and have equal variance. To remove the differences in average values among the 4 
+samples, we plot residuals rather than raw data by group or more often against predicted value. A 
+residual is the difference between the observed CE cost and the predicted value from the 
+regression. In a linear regression of continuous response on a group variable, the predicted value 
+is just the group sample mean and the residual is just the deviation of each observation from its 
+group mean. Obtain the residuals from the regression model above. Make a boxplot of the 
+residuals by group. Plot the residuals against group.**
+
+
+Observations are right-skewed across all groups and have different variance in the box plots from Step A.
+
+
+```{r}
+tibble(residual = model1$residuals, agegen = ce621$agegen) %>%
+    mutate(agegen = factor(agegen, levels = c("f <=60", "f >60", "m <=60", "m >60"))) %>%
+    ggplot(aes(x = agegen, y = residual, fill = agegen)) +
+    stat_boxplot(geom = "errorbar", width = 0.2) +
+    geom_boxplot(aes(fill = agegen)) +
+    xlab("Gender and age") +
+    ylab("Residuals") +
+    scale_x_discrete(labels = c("Female, age <= 60", "Female, age > 60", "Male, age <=60", "Male, age > 60")) +
+    scale_fill_manual(values = c("#0ebeff", "#47cf73", "#ae63e4", "#fcd000"),
+                      guide = "none") +
+    theme_bw()
+```
+
+
+**2) Plot the residuals against the predicted values.**
+
+
+```{r}
+tibble(fit = model1$fitted.values, residual = model1$residuals) %>%
+    ggplot(aes(x = fit, y = residual)) +
+    geom_point() +
+    labs(x = "Predicted values", y = "Residuals") +
+    theme_bw()
+```
+
+
+**This graph can be improved by using the jitter option.**
+
+
+```{r}
+tibble(fit = jitter(model1$fitted.values), residual = model1$residuals) %>%
+    ggplot(aes(x = fit, y = residual)) +
+    geom_point() +
+    labs(x = "Predicted values", y = "Residuals") +
+    theme_bw()
+```
+
+
+**It is clear that the residuals are not Gaussian, not even approximately, and do not have equal 
+variances. The latter violation of assumptions will likely make the inferences incorrect. The Ftest and t-tests will not have F and t-distributions under the null.**
+
+
+**3) One way to address this problem is by analyzing a transformation of the CE expenditure data, 
+rather than the data on its original scale. This works if you want to ask questions about whether 
+there are differences between groups rather than estimating the size of the differences. To 
+accomplish this, generate a new variable which is the logarithm(`log10`)of CE expenditures.**
+
+
+```{r}
+ce621 <- ce621 %>% mutate(logtotchg = log10(totchg))
+```
+
+
+**Make the graphical display using box plots, as was done above.**
+
+
+```{r}
+ce621 %>%
+    mutate(agegen = factor(agegen, levels = c("f <=60", "f >60", "m <=60", "m >60"))) %>%
+    ggplot(aes(x = agegen, y = logtotchg, fill = agegen)) +
+    stat_boxplot(geom = "errorbar", width = 0.2) +
+    geom_boxplot(aes(fill = agegen)) +
+    xlab("Gender and age") +
+    ylab("Total charges in dollars") +
+    scale_x_discrete(labels = c("Female, age <= 60", "Female, age > 60", "Male, age <=60", "Male, age > 60")) +
+    scale_fill_manual(values = c("#0ebeff", "#47cf73", "#ae63e4", "#fcd000"),
+                      guide = "none") +
+    theme_bw()
+```
+
+
+**4) Do the within-group distributions appear more nearly normal and are their variances more
+nearly equal across groups using either the untransformed CE data in Step A or the transformed
+CE data in Step B?**
+
+
+Compared to the untransformed CE data in Step A, the transformed CE data in Step B appear to be relatively more normal and variance near equal across groups.
+
