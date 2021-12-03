@@ -1,0 +1,851 @@
+---
+title: "Problem Set 2"
+author: "Zhengting (Johnathan) He"
+date: "2021/11/13"
+output: html_document
+---
+
+
+```{r "setup", include = FALSE}
+require("knitr")
+opts_knit$set(root.dir = "D:/OneDrive - Johns Hopkins/Course/140.622.81 - Statistical Methods in Public Health II/Problem Set/jhsphbiostat622-assignment/Problem Set 2")
+```
+
+
+```{r, message = FALSE}
+setwd("D:/OneDrive - Johns Hopkins/Course/140.622.81 - Statistical Methods in Public Health II/Problem Set/jhsphbiostat622-assignment/Problem Set 2")
+
+require(tidyverse)
+require(tidymodels)
+```
+
+
+# I. Multiple linear regression to compare “growth” for male and female infants (Analysis of Covariance or ANCOVA)
+
+
+**0. Using the Nepal Children’s Anthropometry Dataset for children ages 0-60 months, omit children with ages greater than 12 months. Also omit all children for whom height, weight or arm circumference is missing.**
+
+
+```{r, message = FALSE}
+nepalA <- read_csv("./data/nepal_anthro.csv")
+```
+
+
+```{r}
+nepalData <- nepalA %>%   ### store this dataset under a new name
+   filter(age <= 12) %>%   ### keep only children with age <= 12
+   drop_na("height", "weight", "armcirc")   ### remove NAs
+```
+
+
+**1. Make a scatter-plot of weight against age discriminating boy and girl infants by the plotting color. Use a small plotting symbol (e.g. dot) and jitter the data so all points can be seen as a cloud. Recode sex as a 0/1 factor variable named gender with two levels, “Male” and “Female”, where “Male” is the reference group (the 0).**
+
+
+```{r}
+nepalData <- nepalData %>% 
+    mutate(gender = recode_factor(sex, `1`="Male", `2`="Female"))
+    ### the first level you designate will be the reference!
+```
+
+
+```{r}
+theme_622 <- function() {
+    theme(
+        panel.background = element_rect(fill = 'transparent', color = 'gray'),
+        panel.border = element_rect(fill = 'transparent', color = 'transparent'),
+        panel.grid = element_line(colour = "grey92"),
+        panel.grid.minor = element_line(size = rel(0.5)),
+        axis.title.x = element_text(size = 16, face = "bold", color = "black"),
+        axis.title.y = element_text(size = 16, face = "bold", color = "black"),
+        axis.text = element_text(size = 12, color = "black"),
+        legend.title = element_text(size = 12, face = "bold", color = "black"),
+        legend.text = element_text(size = 12, color = "black"),
+        legend.position = "bottom"
+    )
+}
+```
+
+
+```{r}
+qplot(x = jitter(age), y = weight, color = gender, shape = gender, 
+      data = nepalData, xlab = "Age in months", ylab = "Weight in kg") +
+    theme_622()
+```
+
+
+**2. Fit a simple ANCOVA model (Model A) that includes gender, age and gender\*age (gender 
+by age interaction). Obtain the fitted values from this model and add them to the graph using 
+the same colors for the boy and girl predicted values as for the original data.**
+
+
+```{r}
+model1 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ age + gender, data = nepalData) %>%
+    extract_fit_engine()
+```
+
+
+```{r}
+summary(model1) %>% tidy() %>% kable()
+```
+
+
+```{r}
+anova(model1) %>% tidy() %>% kable()
+```
+
+
+```{r}
+model2 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ age*gender, data = nepalData) %>%
+    extract_fit_engine()
+```
+
+
+```{r}
+summary(model2) %>% tidy() %>% kable()
+```
+
+
+```{r}
+anova(model2) %>% tidy() %>% kable()
+```
+
+
+```{r}
+qplot(x = jitter(age), y = weight, color = gender, shape = gender,
+      data = nepalData, xlab = "Age in months", ylab = "Weight in kg") +
+    geom_line(aes(x = age, y=model2$fitted.values, color=gender)) +
+    theme_622()
+```
+
+
+**3. Interpret each of the coefficients in this model. Do the data provide evidence that birth 
+weights are different for boys and girls; growth rates? Be quantitative, citing the appropriate 
+estimates and standard errors (or tests) in your answers.**
+
+
+---
+
++ $\hat{\beta_0}$ = 3.89: the expected mean weights for boys is 3.89kg at birth (age = 0 months).
+
++ $\hat{\beta_1}$ = 0.34: the mean weights is expected to increase 0.34kg per 1 month increase in age, among boys.
+
++ $\hat{\beta_2}$ = -0.42: the expected difference in mean weights for girls compared with boys at birth (age = 0 months).
+
++ $\hat{\beta_3}$ = -0.02: the expected difference in mean weights changes per 1 month increase in age for girls compared with boys.
+
++ Birth weights are statistically significantly different for boys and girls. This is supported by the evidence that t-value for $\hat{\beta_2}$ is -2.948, and the p-value is 0.00328, and by the F-value = 52.2374, and p-value = $1.055*10^{-12}$, thus under $\alpha = 0.05$, reject $H_0$ and conclude that birth weights are statistically significantly difference for boys and girls.
+
++ Weight growth rate is statistically significantly different than 0. This is supported by the evidence that t-value for $\hat{\beta_1}$ is 24.488, and the p-value < $2*10^{-16}$, and by the F-value = 1154.8236, and p-value < $2*10^{-16}$, thus under $\alpha = 0.05$, reject $H_0$ and conclude that weight growth rate is statistically significantly different than 0.
+
+---
+
+
+**4. Calculate the residuals from this model and plot them against age using the same colors for 
+boys and girls as were used for the raw data. Comment whether this model, that assumes 
+growth is linear in the first year, is adequate.**
+
+
+```{r}
+qplot(y = model2$residuals, x = jitter(age), color = gender, shape = gender, 
+      data = nepalData, ylab = "Residuals", xlab = "Age in months") +
+    theme_622()
+```
+
+---
+
+Based on the residual plot, the assumption of this model that growth is linear in the first year may not hold. According to the plot, throughout the range of $X$, the residual does not appear to be scatter equally around the value of $0$, but has a curved trend, both for boys and girls. The trend can be showed clearer using lowess regression.
+
+---
+
+
+```{r}
+qplot(y = model2$residuals, x = jitter(age), color = gender, shape = gender, 
+      data = nepalData, ylab = "Residuals", xlab = "Age in months") +
+    geom_smooth(method = "loess", formula = y ~ x) +
+    theme_622()
+```
+
+
+**5. Add a linear spline term with a break at 4 months and its interaction with gender to the model
+above. Call the new model B. Calculate and plot the fitted values from Model B against age. 
+Interpret each of the coefficients in Model B.**
+
+
+```{r}
+nepalData <- nepalData %>%
+    mutate(agesp = ifelse(age > 4, age-4, 0))
+```
+
+
+```{r}
+model3 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ age*gender + agesp*gender, data=nepalData) %>%
+    extract_fit_engine()
+```
+
+
+```{r}
+summary(model3) %>% tidy() %>% kable()
+```
+
+
+```{r}
+confint(model3)
+```
+
+
+```{r}
+qplot(x = jitter(age), y = weight, color = gender, shape = gender, 
+      data = nepalData, xlab = "Age in months", ylab = "Weight in kg") +
+    geom_line(aes(x = age, y=model3$fitted.values, color=gender), size = 1) +
+    theme_622()
+```
+
+
+---
+
+$\hat{weight} = b_0 + b_1*age + b_2*gender + b_3*(age-4)^+ + b_4*age:gender + b_5*(age-4)^+:gender$
+
+1. When gender = male, age $\leq$ 4: $\hat{weight} = b_0 + b_1*age$
+
+2. When gender = male, age > 4: $\hat{weight} = (b_0 - 4*b_3) + (b_1 + b_3)*age$
+
+3. When gender = female, age $\leq$ 4: $\hat{weight} = (b_0 + b_2) + (b_1 + b_4)*age$
+
+4. When gender = female, age > 4: $\hat{weight} = (b_0 + b_2 - 4*(b_3 + b_5)) + (b_1 + b_3 + b_4 + b_5)*age$
+
++ $\hat{\beta_0}$ = 2.79: the expected mean weights for boys is 2.79kg at birth (age = 0 months).
+
++ $\hat{\beta_1}$ = 0.79: the mean weights is expected to increase 0.79kg per 1 month increase in age, when age $\leq$ 4 in boys.
+
++ $\hat{\beta_2}$ = -0.21: the expected difference in mean weights for girls compared with boys at birth (age = 0 months).
+
++ $\hat{\beta_3}$ = -0.58: the expected difference in the change of mean weights per 1 month increase in age when age > 4, compared with when age $\leq$ 4, in boys.
+
++ $\hat{\beta_4}$ = -0.09: the expected difference in mean weights changes per 1 month increase in age for girls compared with boys, when age $\leq$ 4.
+
++ $\hat{\beta_5}$ = 0.09: the expected differences - in the difference in mean weights changes per 1 month increase in age for girls compared with boys - when age > 4 compared with when age $\leq$ 4.
+
+---
+
+
+**6. Test the null hypothesis that growth is linear over the first twelve months by testing whether
+the coefficients of the two new terms in Model B are both zero.**
+
+
+```{r}
+anova(model2, model3)
+```
+
+
+**Note: here’s another way to do it!**
+
+
+```{r}
+survey::regTermTest(model3, ~ agesp + agesp:gender)
+```
+
+
+---
+
+According to the ANOVA test comparing Model A and Model B, F-statistic = 71.74 on $df_{2,892}$, and corresponding p-value $\leq 2.22*10^{-16}$. Thus reject $H_0$ under $\alpha = 0.05$ and conclude that growth is not linear over the first twelve months.
+
+---
+
+
+**7. Calculate the residuals from this model and plot them against age. Comment on any 
+assumptions of the linear regression that still appear to be violated.**
+
+
+```{r}
+qplot(y = model3$residuals, x = jitter(age), data = nepalData,
+      ylab = "Residuals", xlab = "Age in months") +
+    geom_hline(yintercept = 0, color = "red") +
+    theme_622()
+```
+
+
+---
+
+According to the residual plot of residual over age, the residual seems to scatterly and randomly distributed around $0$ over the range of $X$, and no apparent trend identified, indicating that the linear assumption was not violated.
+
+---
+
+
+**8. Write a paragraph to summarize your findings regarding growth of boys and girls as if for a 
+public health journal. Be quantitative (use numbers) and avoid statistical jargon.**
+
+
+---
+
+Comparing to birth weights of girls, birth weights of boys was approximately 0.21kg higher; however it is noticed that the difference is not statistically significant. Within 4 months after birth, weights of boys increase approximately 0.79kg with 1 month increase in age, and weights of girls increase approximately 0.70kg with 1 month increase in age. Gender may be an effect modifier on the association between age and weight growth of children; however, it is noticed that the effect modification is not statistically significant. After the age of 4 months, the weight growth of boys and girls was approximately 0.58kg and 0.49kg statistically significantly slower, respectively, compared with the first 4 months after birth. This result in a similar weight growth of approximately 0.20kg in both boys and girls per 1 month increase in age after the age of 4 months. The global F-statistic and p-value shows the significant of the linear relationship (at least one parameters $\leq$ 0), and $R^2$ value is 0.6336, indicates a moderate ability of predicting weight using the covarates of age, gender, age spline term, and interaction term of age and gender, interaction term of age spline term and gender.
+
+---
+
+
+# II. Modelling Non-linear Relationships with MLR
+
+
+**1. Use the data set from Problem I.**
+
+
+**2. Plot weight against age (use small plotting symbols, e.g. dots, and jitter the points so they can all be seen).**
+
+
+```{r}
+qplot(x = jitter(age), y = weight, data = nepalData,
+      xlab = "Age in months", ylab = "Weight in kg", ylim = c(0, 12)) +
+    theme_622()
+```
+
+
+**3. Calculate the sample mean weight for each month of age and add the estimated means for 
+each month to the graph (with bold symbols and a connecting line) to highlight the trend.**
+
+
+**To compute mean weight for each month of age will work because age takes on 13 unique 
+values (the integers 0-12): if age was truly continuous, the following command would fail to 
+work.**
+
+
+```{r}
+nepalData %>% group_by(age) %>% summarize(mean = mean(weight)) %>% kable()
+```
+
+
+**To add means to previous graph:**
+
+
+```{r}
+qplot(x = jitter(age), y = weight, data = nepalData,
+    xlab = "Age in months", ylab = "Weight in kg", ylim = c(0, 12)) +
+    stat_summary(aes(x = age, y = weight), fun.y = mean, geom = "line",
+                 lwd = 2, color = "red") +
+    theme_622()
+```
+
+
+**(Scientific digression: this pattern actually represents the convolution of two biological 
+processes: growth and seasonality. For simplicity, below we will refer to it as “growth.”)**
+
+
+**4. Use simple linear regression to regress weight on age and add the least squares line to the 
+plot.**
+
+
+```{r}
+model4 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ age, data = nepalData) %>%
+    extract_fit_engine()
+```
+
+
+```{r}
+summary(model4) %>% tidy() %>% kable()
+```
+
+
+```{r}
+confint(model4)
+```
+
+
+```{r}
+qplot(x = jitter(age), y = weight, data = nepalData, xlab = "Age in months",  
+      ylab = "Weight in kg", ylim = c(0, 12)) +
+    geom_smooth(method = "lm") +
+    theme_622()
+```
+
+
+**OR, a more general way to plot “fitted values” on a plot:**
+
+
+```{r}
+qplot(x = jitter(age), y = weight, data = nepalData, xlab = "Age in months", 
+      ylab = "Weight in kg", ylim = c(0, 12)) +
+    geom_line(aes(x = age, y = model4$fitted.values), color = "red", lwd = 2) +
+    theme_622()
+```
+
+
+**5. Calculate the residuals from the simple linear regression above and plot them versus age.
+Add a smooth function using lowess smoothing. Comment in one sentence on the adequacy 
+of a linear assumption for “growth”.**
+
+
+```{r}
+qplot(y = model4$residuals, x = jitter(age), data = nepalData, ylab = "Residuals",  
+      xlab = "Age in months") + 
+    geom_smooth(method = "loess", se = FALSE) +   # loess smoother
+    geom_hline(yintercept = 0, color = "red") +   # horizontal y=0 line
+    theme_622()
+```
+
+
+---
+
+Based on the residual plot, the linear assumption for growth may not hold. According to the plot, throughout the range of $X$, the residual does not appear to be scatter equally around the value of $0$, but has a curved trend — residuals tends to be scattering below $0$ around 0~2 months and 10~12 months, while scattering above $0$ in 2~10 months.
+
+---
+
+
+**6. Use linear regression to regress weight onto the monthly mean ages.**
+
+
+```{r}
+model5 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ as.factor(age), data = nepalData) %>%
+    extract_fit_engine()
+```
+
+
+```{r}
+summary(model5) %>% tidy() %>% kable()
+```
+
+
+```{r}
+confint(model5)
+```
+
+
+**7. Linear splines:**
+
+
++ **a. Create three new variables: **
+
+age_sp1 = $(age – 2)^+ = age \ – 2$ if age > 2, 0 if not
+
+age_sp2 = $(age - 4)^+ = age \ – 4$ if age > 4, 0 if not
+
+age_sp3 = $(age - 6)^+ = age \ – 6$ if age > 6, 0 if not
+
+
+```{r}
+nepalData = nepalData %>%
+    mutate(age_sp1 = ifelse(age > 2, age - 2, 0)) %>%
+    mutate(age_sp2 = ifelse(age > 4, age - 4, 0)) %>%
+    mutate(age_sp3 = ifelse(age > 6, age - 6, 0))
+```
+
+
++ **b. Regress weight on age, age_sp1, age_sp2 and age_sp3.**
+
+
+```{r}
+model6 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ age + age_sp1 + age_sp2 + age_sp3, data = nepalData) %>%
+    extract_fit_engine()
+```
+
+
+```{r}
+summary(model6) %>% tidy() %>% kable()
+```
+
+
+```{r}
+confint(model6)
+```
+
+
++ **c. Get the predicted values from this regression. Add these to the plot of weight against age 
+from step 1.**
+
+
+```{r}
+qplot(x = jitter(age), y = weight, data = nepalData, xlab = "Age in months",  
+      ylab = "Weight in kg", ylim = c(0, 12)) +
+    geom_line(aes(x = age, y = model6$fitted.values), color = "red", lwd = 2) +
+    theme_622()
+```
+
+
++ **d. Interpret the meaning of the coefficients for the three “linear spline” terms: age_sp1, 
+age_sp2 and age_sp3.**
+
+
+---
+
++ $\hat{\beta_0}$ = 2.63: the estimated weight at birth (age in months = 0)
+
++ $\hat{\beta_1}$ = 0.80: the estimated increase in weight per 1 month increase in age when age $\leq$ 2 months.
+
++ $\hat{\beta_2}$ = -0.16: difference between the estimated increase in weight per 1 month increase in age when age > 2 months and $\leq$ 4 months, compared with age $\leq$ 2 months.
+
++ $\hat{\beta_3}$ = -0.31: difference between the estimated increase in weight per 1 month increase in age when age > 4 months and $\leq$ 6 months, compared with age > 2 months and $\leq$ 4 months.
+
++ $\hat{\beta_4}$ = -0.16: difference between the estimated increase in weight per 1 month increase in age when age > 6 months, compared with age > 4 months and $\leq$ 6 months.
+
+---
+
+
++ **e. Use an F-test with 3 degrees of freedom in the numerator to test the null hypothesis of a 
+linear relationship against the alternative defined by the linear spline fit in the steps
+above.**
+
+
+```{r}
+anova(model4, model6)
+```
+
+
+*OR*
+
+
+```{r}
+survey::regTermTest(model6, ~ age_sp1 + age_sp2 + age_sp3)
+```
+
+
++ **f. Comment in a few sentences on the evidence from this analysis for or against a linear 
+growth curve**
+
+
+---
+
+According to the ANOVA test comparing Model 4 and Model 6, F-statistic = 45.98 on $df_{3,893}$, and corresponding p-value $\leq 2.22*10^{-16}$. Thus reject $H_0$ under $\alpha = 0.05$ and conclude that growth is not linear over the first twelve months.
+
+---
+
+
+**8. Consider using your models to predict children’s weights. Complete the table below. 
+PLEASE NOTE: AIC also can be calculated by hand using either of the formulas below.**
+
+
+```{r}
+AIC(model4, model5, model6) %>% kable()
+```
+
+
+**PLEASE NOTE: R explicitly count the variance as a parameter when calculating AIC for 
+regression. So the calculations in R will have 3, 14, 6 as the degrees of freedom rather than 
+the 2, 13, 5 shown in the table below. This just means that each AIC value calculated by R 
+will be 2*1=2 units higher than the values when you calculate by hand according to this 
+table!**
+
+
+```{r}
+AIC.table <- tibble(
+    `Model (# parameters)` = c("Linear (2)", "Monthly means (13)", "Linear spline (5)"),
+    `parameters` = c(2, 13, 5),
+    `Residual sum of squares (RSS)` = c(anova(model4)$`Sum Sq`[length(anova(model4)$`Sum Sq`)],
+                                        anova(model5)$`Sum Sq`[length(anova(model5)$`Sum Sq`)],
+                                        anova(model6)$`Sum Sq`[length(anova(model6)$`Sum Sq`)]),
+    `Residual mean square (MSE)` = c(anova(model4)$`Mean Sq`[length(anova(model4)$`Mean Sq`)],
+                                     anova(model5)$`Mean Sq`[length(anova(model5)$`Mean Sq`)],
+                                     anova(model6)$`Mean Sq`[length(anova(model6)$`Mean Sq`)]),
+    `AIC.lm` = nrow(nepalData)*(log(2*pi*`Residual sum of squares (RSS)`/nrow(nepalData))+1) +
+        2*`parameters`,
+    `log-likelihood` = sapply(c(logLik(model4), logLik(model5), logLik(model6)), as.numeric),
+    `AIC.glm` = -2*(`log-likelihood`) + 2*`parameters`
+    ) %>%
+    mutate(`parameters` = NULL)
+```
+
+
+```{r}
+AIC.huxtable <- huxtable::as_hux(AIC.table) %>%
+    huxtable::insert_row("", "Using the regress command", "", "", "Using the glm command", "") %>%
+    huxtable::merge_cells(1, 2:4) %>%
+    huxtable::merge_cells(1, 5:6) %>%
+    huxtable::set_header_rows(1, TRUE) %>%
+    huxtable::style_headers(bold = TRUE)
+huxtable::number_format(AIC.huxtable) <- 2
+AIC.huxtable
+```
+
+
+**9. Comment on the quality of each of the 3 models using the plots, the residual mean squares 
+and AIC values, and your judgment about how children grow. Comment on what aspects of 
+model quality each measure addresses.**
+
+---
+
++ Quality of all 3 models:
+
+  - Model 4: Model 4 is a simple linear regression using age to predict weight. The residual plot shows that linear assumption may not meet. $MSE$ = 1.21, which is the highest among all 3 models. $AIC$ = 2720.80, which is the highest among all 3 models. Based on these evidence, model 4 has the least quality for prediction among all 3 models.
+  
+  - Model 5: Model 4 is a multiple linear regression treating age as categorical data (indicator variable), and using linear regression to compare the mean weights across each age group. $MSE$ = 1.04, which is similar to the $MSE$ of model 6. $AIC$ = 2598.69, which is slightly higher than model 6. Based on these evidence, model 5 provides better quality for predicting weight compared with model 4; however, it does not use least parameters needed to predict weight, i.e., does not meet with parsimonious model criteria.
+  
+  - Model 6: Model 6 is a multiple linear regression including 3 spline terms. The scatter plot shows a relatively better quality fit for the data compared with model 4. $MSE$ = 1.05, which is similar to $MSE$ of model 5. $AIC$ = 2597.80, which is the lowest among all 3 models. Based on these evidence, model 6 has the highest quality for prediction among all 3 models.
+  
++ Judgement on how children grow:
+
+  - Based on the prediction models and their quality, model 6 has the highest quality for prediction, which shows that weight increases per each month increase in age. Children grow fastest within the first 2 months after baseline (0.799kg per 1 month increase in age); the weight increase rate decreases to 0.640kg per 1 month increase in age when age > 2 months; the weight increase rate decreases to 0.329kg per 1 month increase in age when age > 4 months; the weight increase rate decreases to 0.172kg per 1 month increase in age when age > 6 months. The changes in weight increase rate at each age cutoff point are statistically significant.
+
++ What aspects of model quality each measure addresses
+
+  - Residual plot / scatter plot: whether assumptions of linear regression meets in the case of the model.
+  
+  - $MSE$: how much of the variability in weight cannot be explained by age.
+  
+  - $AIC$: approximation to the cross-validated prediction error (a criteria for determining the "best" model for prediction) 
+
+---
+
+
+**Create a script file to store your commands for this assignment. A script file makes it easy to re-run your commands later. It also makes it straightforward to reproduce your analysis at a late time. (See “Script files: keeping track of what you do” from the “R/RStudio: A Brief Introduction” document posted on Course Plus.)**
+
+
+```
+####################################### Problem Set 2 #######################################
+
+# I. Multiple linear regression to compare “growth” for male and female infants (Analysis of
+# Covariance or ANCOVA)
+
+# Set up
+require(tidyverse)
+require(tidymodels)
+
+setwd("D:/OneDrive - Johns Hopkins/Course/140.622.81 - Statistical Methods in Public Health II/Problem Set/jhsphbiostat622-assignment/Problem Set 2")
+
+nepalA <- read_csv("./data/nepal_anthro.csv")
+
+nepalData <- nepalA %>%   ### store this dataset under a new name
+    filter(age <= 12) %>%   ### keep only children with age <= 12
+    drop_na("height", "weight", "armcirc")   ### remove NAs
+
+
+nepalData <- nepalData %>% 
+    mutate(gender = recode_factor(sex, `1`="Male", `2`="Female"))
+    ### the first level you designate will be the reference!
+
+
+# Scatter plot
+qplot(x = jitter(age), y = weight, color = gender, shape = gender, 
+      data = nepalData, xlab = "Age in months", ylab = "Weight in kg") +
+    theme(panel.background = element_rect(fill='transparent', color='gray'),
+          panel.border = element_rect(fill='transparent', color='transparent'),
+          panel.grid = element_line(colour = "grey92"), 
+          panel.grid.minor = element_line(size = rel(0.5)),
+          axis.title.x = element_text(size = 16, face = "bold", color = "black"),
+          axis.title.y = element_text(size = 16, face = "bold", color = "black"),
+          axis.text = element_text(size = 12, color = "black"),
+          legend.title = element_text(size = 12, face = "bold", color = "black"),
+          legend.text = element_text(size = 12, color = "black"),
+          legend.position = "bottom")
+
+
+# Linear regression
+model1 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ age + gender, data = nepalData) %>%
+    extract_fit_engine()
+summary(model1)
+anova(model1)
+
+model2 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ age*gender, data = nepalData) %>%
+    extract_fit_engine()
+summary(model2)
+anova(model2)
+
+
+# Scatter plot with fitted line
+qplot(x = jitter(age), y = weight, color = gender, shape = gender,
+      data = nepalData, xlab = "Age in months", ylab = "Weight in kg") +
+    geom_line(aes(x = age, y=model2$fitted.values, color=gender)) +
+    theme(panel.background = element_rect(fill='transparent', color='gray'),
+          panel.border = element_rect(fill='transparent', color='transparent'),
+          panel.grid = element_line(colour = "grey92"), 
+          panel.grid.minor = element_line(size = rel(0.5)),
+          axis.title.x = element_text(size = 16, face = "bold", color = "black"),
+          axis.title.y = element_text(size = 16, face = "bold", color = "black"),
+          axis.text = element_text(size = 12, color = "black"),
+          legend.title = element_text(size = 12, face = "bold", color = "black"),
+          legend.text = element_text(size = 12, color = "black"),
+          legend.position = "bottom")
+
+
+# Residual plot
+qplot(y = model2$residuals, x = jitter(age), color = gender, shape = gender, 
+      data = nepalData, ylab = "Residuals", xlab = "Age in months") +
+    theme(panel.background = element_rect(fill='transparent', color='gray'),
+          panel.border = element_rect(fill='transparent', color='transparent'),
+          panel.grid = element_line(colour = "grey92"), 
+          panel.grid.minor = element_line(size = rel(0.5)),
+          axis.title.x = element_text(size = 16, face = "bold", color = "black"),
+          axis.title.y = element_text(size = 16, face = "bold", color = "black"),
+          axis.text = element_text(size = 12, color = "black"),
+          legend.title = element_text(size = 12, face = "bold", color = "black"),
+          legend.text = element_text(size = 12, color = "black"),
+          legend.position = "bottom")
+
+
+qplot(y = model2$residuals, x = jitter(age), color = gender, shape = gender, 
+      data = nepalData, ylab = "Residuals", xlab = "Age in months") +
+    geom_smooth(method = "loess", formula = y ~ x) +
+    theme(panel.background = element_rect(fill='transparent', color='gray'),
+          panel.border = element_rect(fill='transparent', color='transparent'),
+          panel.grid = element_line(colour = "grey92"), 
+          panel.grid.minor = element_line(size = rel(0.5)),
+          axis.title.x = element_text(size = 16, face = "bold", color = "black"),
+          axis.title.y = element_text(size = 16, face = "bold", color = "black"),
+          axis.text = element_text(size = 12, color = "black"),
+          legend.title = element_text(size = 12, face = "bold", color = "black"),
+          legend.text = element_text(size = 12, color = "black"),
+          legend.position = "bottom")
+
+
+# Linear spline
+nepalData <- nepalData %>%
+    mutate(agesp = ifelse(age > 4, age-4, 0))
+
+model3 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ age*gender + agesp*gender, data=nepalData) %>%
+    extract_fit_engine()
+summary(model3) %>% tidy()
+confint(model3)
+
+
+# Testing on spline term and residual plot
+anova(model2, model3)
+survey::regTermTest(model3, ~ agesp + agesp:gender)
+
+qplot(y = model3$residuals, x = jitter(age), data = nepalData,
+      ylab = "Residuals", xlab = "Age in months") +
+    geom_hline(yintercept = 0, color = "red") +
+    theme(panel.background = element_rect(fill='transparent', color='gray'),
+          panel.border = element_rect(fill='transparent', color='transparent'),
+          panel.grid = element_line(colour = "grey92"), 
+          panel.grid.minor = element_line(size = rel(0.5)),
+          axis.title.x = element_text(size = 16, face = "bold", color = "black"),
+          axis.title.y = element_text(size = 16, face = "bold", color = "black"),
+          axis.text = element_text(size = 12, color = "black"),
+          legend.title = element_text(size = 12, face = "bold", color = "black"),
+          legend.text = element_text(size = 12, color = "black"),
+          legend.position = "bottom")
+
+
+# II. Modelling Non-linear Relationships with MLR
+
+# Scatter plot
+qplot(x = jitter(age), y = weight, data = nepalData,
+      xlab = "Age in months", ylab = "Weight in kg", ylim = c(0, 12)) +
+    theme(panel.background = element_rect(fill='transparent', color='gray'),
+          panel.border = element_rect(fill='transparent', color='transparent'),
+          panel.grid = element_line(colour = "grey92"), 
+          panel.grid.minor = element_line(size = rel(0.5)),
+          axis.title.x = element_text(size = 16, face = "bold", color = "black"),
+          axis.title.y = element_text(size = 16, face = "bold", color = "black"),
+          axis.text = element_text(size = 12, color = "black"),
+          legend.title = element_text(size = 12, face = "bold", color = "black"),
+          legend.text = element_text(size = 12, color = "black"),
+          legend.position = "bottom")
+
+nepalData %>% group_by(age) %>% summarize(mean = mean(weight))
+
+qplot(x = jitter(age), y = weight, data = nepalData,
+      xlab = "Age in months", ylab = "Weight in kg", ylim = c(0, 12)) +
+    stat_summary(aes(x = age, y = weight), fun.y = mean, geom = "line",
+                 lwd = 2, color = "red") +
+    theme(panel.background = element_rect(fill='transparent', color='gray'),
+          panel.border = element_rect(fill='transparent', color='transparent'),
+          panel.grid = element_line(colour = "grey92"), 
+          panel.grid.minor = element_line(size = rel(0.5)),
+          axis.title.x = element_text(size = 16, face = "bold", color = "black"),
+          axis.title.y = element_text(size = 16, face = "bold", color = "black"),
+          axis.text = element_text(size = 12, color = "black"),
+          legend.title = element_text(size = 12, face = "bold", color = "black"),
+          legend.text = element_text(size = 12, color = "black"),
+          legend.position = "bottom")
+
+
+# Simple linear regression weight ~ age
+model4 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ age, data = nepalData) %>%
+    extract_fit_engine()
+summary(model4) %>% tidy() %>% kable()
+confint(model4)
+
+qplot(x = jitter(age), y = weight, data = nepalData, xlab = "Age in months",  
+      ylab = "Weight in kg", ylim = c(0, 12)) +
+    geom_smooth(method = "lm") +
+    theme_622()
+
+qplot(x = jitter(age), y = weight, data = nepalData, xlab = "Age in months", 
+      ylab = "Weight in kg", ylim = c(0, 12)) +
+    geom_line(aes(x = age, y = model4$fitted.values), color = "red", lwd = 2) +
+    theme_622()
+
+qplot(y = model4$residuals, x = jitter(age), data = nepalData, ylab = "Residuals",  
+      xlab = "Age in months") + 
+    geom_smooth(method = "loess", se = FALSE) +   # loess smoother
+    geom_hline(yintercept = 0, color = "red") +   # horizontal y=0 line
+    theme_622()
+
+
+# Linear regression weight ~ monthly mean age
+model5 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ as.factor(age), data = nepalData) %>%
+    extract_fit_engine()
+summary(model5) %>% tidy()
+confint(model5)
+
+
+# Linear splines
+nepalData = nepalData %>%
+    mutate(age_sp1 = ifelse(age > 2, age - 2, 0)) %>%
+    mutate(age_sp2 = ifelse(age > 4, age - 4, 0)) %>%
+    mutate(age_sp3 = ifelse(age > 6, age - 6, 0))
+
+model6 <- linear_reg() %>%
+    set_engine("lm") %>%
+    fit(weight ~ age + age_sp1 + age_sp2 + age_sp3, data = nepalData) %>%
+    extract_fit_engine()
+summary(model6) %>% tidy()
+confint(model6)
+
+qplot(x = jitter(age), y = weight, data = nepalData, xlab = "Age in months",  
+      ylab = "Weight in kg", ylim = c(0, 12)) +
+    geom_line(aes(x = age, y = model6$fitted.values), color = "red", lwd = 2) +
+    theme_622()
+
+
+# Compare linearity
+anova(model4, model6)
+survey::regTermTest(model6, ~ age_sp1 + age_sp2 + age_sp3)
+
+
+# Compare models
+AIC(model4, model5, model6)
+
+AIC.table <- tibble(
+    `Model (# parameters)` = c("Linear (2)", "Monthly means (13)", "Linear spline (5)"),
+    `parameters` = c(2, 13, 5),
+    `Residual sum of squares (RSS)` = c(anova(model4)$`Sum Sq`[length(anova(model4)$`Sum Sq`)],
+                                        anova(model5)$`Sum Sq`[length(anova(model5)$`Sum Sq`)],
+                                        anova(model6)$`Sum Sq`[length(anova(model6)$`Sum Sq`)]),
+    `Residual mean square (MSE)` = c(anova(model4)$`Mean Sq`[length(anova(model4)$`Mean Sq`)],
+                                     anova(model5)$`Mean Sq`[length(anova(model5)$`Mean Sq`)],
+                                     anova(model6)$`Mean Sq`[length(anova(model6)$`Mean Sq`)]),
+    `AIC.lm` = nrow(nepalData)*(log(2*pi*`Residual sum of squares (RSS)`/nrow(nepalData))+1) +
+        2*`parameters`,
+    `log-likelihood` = sapply(c(logLik(model4), logLik(model5), logLik(model6)), as.numeric),
+    `AIC.glm` = -2*(`log-likelihood`) + 2*`parameters`
+) %>%
+    mutate(`parameters` = NULL)
+
+AIC.huxtable <- huxtable::as_hux(AIC.table) %>%
+    huxtable::insert_row("", "Using the regress command", "", "", "Using the glm command", "") %>%
+    huxtable::merge_cells(1, 2:4) %>%
+    huxtable::merge_cells(1, 5:6) %>%
+    huxtable::set_header_rows(1, TRUE) %>%
+    huxtable::style_headers(bold = TRUE)
+huxtable::number_format(AIC.huxtable) <- 2
+AIC.huxtable
+```
