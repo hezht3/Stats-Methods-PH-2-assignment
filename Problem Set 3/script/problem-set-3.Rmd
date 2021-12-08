@@ -1,30 +1,380 @@
 ---
-title: "problem-set-3"
+title: "Problem Set 3"
 author: "Zhengting (Johnathan) He"
 date: "2021/12/2"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
+```{r "setup", include = FALSE}
+require("knitr")
+opts_knit$set(root.dir = "D:/OneDrive - Johns Hopkins/Course/140.622.81 - Statistical Methods in Public Health II/Problem Set/jhsphbiostat622-assignment/Problem Set 3")
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r, message = FALSE}
+setwd("D:/OneDrive - Johns Hopkins/Course/140.622.81 - Statistical Methods in Public Health II/Problem Set/jhsphbiostat622-assignment/Problem Set 3")
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+require(tidyverse)
+require(tidymodels)
+require(Hmisc)
 
-```{r cars}
-summary(cars)
+nepal621 <- read_csv("./data/nepal621_v2.csv")
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+# Vitamin A Supplementation to Prevent Children’s Mortality in Nepal
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+
+**Section: Intent-to-Treat Analysis of Efficacy and Confidence Intervals**
+
+
+## 1) Vitamin A Supplementation to Prevent Children’s Mortality in Nepal
+
+
+**i) Create a table that displays the numbers of deaths and numbers of survivors for the 
+vitamin A and control groups separately for the six age-by-sex strata. Include totals 
+across all strata and percentages so that the reader of your table can see the evidence for 
+whether or not vitamin A is beneficial.**
+
+
+```{r}
+nepal621 %>% 
+    group_by(trt, sex, age) %>% 
+    summarise(N_Alive = sum(status == "Alive"),
+              Perc_Alive = N_Alive / n(),
+              N_Died = sum(status == "Died"),
+              Perc_Died = N_Died / n(),
+              Total = n()) %>% 
+    kable()
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+**Make it a little prettier!**
+
+
+```{r}
+nepal621 %>% 
+    group_by(trt, sex, age) %>%
+    summarise(N_Alive = sum(status == "Alive"),
+              Perc_Alive = round(N_Alive / n(), 4) * 100,
+              N_Died = sum(status == "Died"),
+              Perc_Died = round(N_Died / n(), 4) * 100,
+              Total = n()) %>% 
+    kable()
+```
+
+
+**ii) Ignoring age and sex for the moment, estimate the proportion of children who died in the 
+vitamin A group and in the control group and estimate the difference in mortality rates 
+between the two groups. Be sure to give correct units for the mortality rates.**
+
+
+```{r}
+nepal621 %>% 
+    group_by(trt) %>% 
+    summarise(N_Alive = sum(status == "Alive"),
+              Perc_Alive = round(N_Alive / n(), 4) * 100,
+              N_Died = sum(status == "Died"),
+              Perc_Died = round(N_Died / n(), 4) * 100,
+              Total = n()) %>% 
+    kable()
+```
+
+
+---
+
+The proportions of children died in the vitamin A group and in the control group are 1.70% and 2.17%, respectively. The estimated difference in mortality risks between vitamin A group and placebo group is 1.70% - 2.17% = -0.47%.
+
+---
+
+**iii) Calculate a 95% confidence interval for each true mortality rate.**
+
+
+```{r}
+sum.treatment <- nepal621 %>% 
+    group_by(trt) %>% 
+    summarise(N_Alive = sum(status == "Alive"),
+              p_Alive = N_Alive / n(),
+              N_Died = sum(status == "Died"),
+              p_Died = N_Died / n(),
+              Total = n(),
+              se_Died = sqrt(p_Died * (1 - p_Died) / Total),
+              CI_L = p_Died - 1.96 * se_Died,
+              CI_U = p_Died + 1.96 * se_Died)
+
+sum.treatment %>% kable()
+```
+
+
+**By hand, calculate a 95% confidence interval for the true difference in mortality rates by 
+treatment. Confirm using R.**
+
+
+---
+
+Difference in mortality rates in Vit A compared with placebo is: $\hat{d} = \hat{p_1} - \hat{p_2} = 0.0217 - 0.0170 = 0.0047$
+
+Standard deviation of the difference is: $SD(\hat{d}) = \sqrt{\frac{\hat{p_1}*(1-\hat{p_1})}{n_1} + \frac{\hat{p_2}*(1-\hat{p_2})}{n_2}} = 0.0017$
+
+95\% confidence interval for the true difference in mortality rates by treatment is: $\hat{d} \pm 1.96*SD(\hat{d}) = [0.0080,0.0014]$
+
+---
+
+
+```{r}
+p.1 <- sum.treatment$p_Died[1]
+n.1 <- sum.treatment$N_Alive[1]
+p.2 <- sum.treatment$p_Died[2]
+n.2 <- sum.treatment$N_Alive[2]
+
+diff = p.1 - p.2
+se = sqrt(p.1 * (1 - p.1) / n.1 + p.2 * (1 - p.2) / n.2) # standard error
+diff - 1.96*se; diff + 1.96*se # confidence interval
+```
+
+
+**iv) Now calculate a 95% confidence interval for the difference in mortality rates for the 
+vitamin A and control groups separately for each age-sex stratum. Display the 
+confidence intervals for the six strata and for the overall groups (from step iii) on a graph 
+as if for a journal article. The code below will give you the p’s and n’s for the different 
+strata. Then use the template in part (iii) to calculate the confidence intervals.**
+
+
+```{r}
+sum.agesex <- nepal621 %>% 
+    group_by(sex, age, trt) %>% 
+    summarise(N_Died = sum(status == "Died"),
+              p_Died = N_Died / n(),
+              Total = n())
+sum.agesex %>% kable()
+```
+
+
+```{r}
+sum.agesex %>% 
+    group_by(sex, age) %>% 
+    summarise(p.1 = p_Died[1],
+              p.2 = p_Died[2],
+              n.1 = Total[1],
+              n.2 = Total[2],
+              diff = p.1 - p.2,
+              se = sqrt(p.1 * (1 - p.1) / n.1 + p.2 * (1 - p.2) / n.2),
+              ci_l = diff - 1.96 * se,
+              ci_u = diff + 1.96 * se) %>% 
+    kable()
+```
+
+
+**Alternatively, you could calculate the CIs directly within each age/sex strata as follows,
+making sure your output window is wide enough to see the whole table of results!**
+
+
+```{r}
+nepal621 %>% 
+    group_by(sex, age) %>% 
+    summarise(N_Plac = sum(trt == "Placebo"),
+              p_Plac = sum(status == "Died" &
+                               trt == "Placebo") / N_Plac,
+              N_VitA = sum(trt == "Vit A"),
+              p_VitA = sum(status == "Died" & trt == "Vit A") / N_VitA,
+              diff = p_Plac - p_VitA,
+              se = sqrt(p_Plac * (1 - p_Plac) / N_Plac + p_VitA * (1 - p_VitA) /
+                            N_VitA),
+              CI_L = diff - 1.96 * se,
+              CI_U = diff + 1.96 * se) %>% 
+    kable()
+```
+
+
+***Code for graph:***
+
+
+```{r}
+dataForCIplot <- nepal621 %>% 
+    group_by(sex, age) %>% 
+    summarise(N_Plac = sum(trt == "Placebo"),
+              p_Plac = sum(status == "Died" &
+                               trt == "Placebo") / N_Plac,
+              N_VitA = sum(trt == "Vit A"),
+              p_VitA = sum(status == "Died" &
+                               trt == "Vit A") / N_VitA,
+              diff = p_Plac - p_VitA,
+              se = sqrt(p_Plac * (1 - p_Plac) / N_Plac + p_VitA * (1 - p_VitA) /
+                            N_VitA),
+              CI_L = diff - 1.96 * se,
+              CI_U = diff + 1.96 * se)
+ 
+agestrata = c(1, 2, 3, 4, 5, 6, 7)
+agestrata_labels = c("F < 1", "F 1-2", "F 3-4", "M < 1", "M 1-2", "M 3-4", "Overall")
+diff = c(dataForCIplot$diff, 0.0047)
+LL = c(dataForCIplot$CI_L, 0.00142)
+UL = c(dataForCIplot$CI_U, 0.00798)
+## Add labels to the axes
+errbar(x = agestrata,
+       y = diff,
+       yplus = LL,
+       yminus = UL,
+       xaxt = "n", #xaxt removes the numberic lables
+       xlab = "Age/Gender Group", #label for x-axis
+       ylab = "Difference in Mortality Rates (VitA - Placebo)") #label for y-axis()
+## Add a title
+title(main = "95% Confidence Intervals for Difference in Mortality Rates")
+## Add group labels for the age-gender groups
+axis(side = 1, #1 = the bottom of graph
+     at = agestrata, #where on x-axis; same as "x" in errbar
+     labels = agestrata_labels) #what the labels are
+# Add horizontal line at zero
+abline(h = 0, col = "red")
+```
+
+
+**v) Consider the linear regression model:**
+
+
+$$
+Y = \beta_0 + \beta_1*X + e
+$$
+
+
+**where Y=1 if died; 0 if alive and X=1 if Vit A; 0 if control.**
+
+
+**Interpret the meanings of $\beta_0$ , $\beta_0 + \beta_1$ an $\beta_1$ in public health terms.**
+
+
+**To estimate these parameters and get correct confidence intervals and tests, you must use
+the following generalized linear model in R:**
+
+
+```{r}
+model1 <- glm(as.factor(status) ~ trt, data = nepal621, family = binomial(link = "identity"))
+model1 %>% tidy() %>% kable()
+confint(model1)
+```
+
+
+---
+
+$\hat{\beta_0} = 0.0217$: observed risk of death in the placebo group.
+
+$\hat{\beta_0} + \hat{beta_1} = 0.0170$: observed risk of death in the Vit A intervention group.
+
+$\hat{\beta_1} = -0.0047$: observed risk difference of death in the Vit A intervention group compared with the placebo group.
+
+---
+
+
+**Fit this model and compare the estimates of the key parameters with what you obtained 
+from parts iii and iv.**
+
+
+---
+
+The estimates of mortality risks in vitmain A group and placebo group, as well as the risk difference between the 2 groups, are consistent between the Generalized Linear Model and the calculation in parts iii and iv.
+
+---
+
+
+**vi) Write a sentence or two as if for the *Lancet* that reports the estimated difference in 
+mortality rates with an expression of uncertainty in this estimate for all children. Point 
+out any patterns that you see across the six strata. Explain in a brief sentence or two why 
+there is uncertainty in the estimated difference in mortality for the vitamin A and non-vitamin A villages.**
+
+
+---
+
+The crude estimated mortality risks are 2.17% and 1.70% in non-vitamin A villages and in vitamin A villages, respectively. The risk difference is 0.47% in the non-vitamin A villages and is statistically significant under $\alpha$ = 0.05, which indicates that Vitamin A villages may have a lower level of mortality risk compared to non-vitamin A villages.
+
+Across the 6 age and sex strata, the trend of mortality risks estimated seems to be different: mortality risks tend to decrease as age increase in female group, while mortality risks tend to increase as age increase in male group.
+
+Since strata-specific estimates of mortality risks are inconsistent, age and gender may influence the association between Vitamin A and death, thus merely based on crude effect estimates may not be sufficient to draw the conclusion. There may also be other confounders that are not addressed in the crude results.
+
+---
+
+
+# 2) Vitamin A Supplementation to Prevent Children’s Mortality in Nepal
+
+
+**i) Create two age groups (< 3 years, ≥ 3 years). Estimate the odds ratio with a 95% 
+confidence interval for vitamin A exposure by vital status within each age stratum. Test 
+the null hypothesis that vitamin A is not effective for each age group.**
+
+
+```{r}
+nepal621 <- nepal621 %>%
+    mutate(agegp = ifelse(age == "3 to 4", "3+ years", "<3 years"))
+
+# Calculates the odds by age group and trt; can the find CI by hand
+nepal621 %>%
+    group_by(agegp, trt) %>%
+    summarise(N_Alive = sum(status == "Alive"),
+        N_Died = sum(status == "Died"),
+        Odds = N_Died / N_Alive) %>% 
+    kable()
+
+# Let R do all the calculations for you!
+nepal621 %>%
+    group_by(agegp) %>%
+    summarise(N_Alive_P = sum(status == "Alive" & trt == "Placebo"),
+              N_Died_P = sum(status == "Died" & trt == "Placebo"),
+              N_Alive_V = sum(status == "Alive" & trt == "Vit A"),
+              N_Died_V = sum(status == "Died" & trt == "Vit A"),
+              OR = (N_Died_V / N_Alive_V) / (N_Died_P / N_Alive_P),
+              se = sqrt(1 / N_Alive_P + 1 / N_Died_P + 1 / N_Alive_V + 1 / N_Died_V),
+              CI_L = exp(log(OR) - 1.96 * se),
+              CI_U = exp(log(OR) + 1.96 * se)) %>% 
+    kable()
+```
+
+
+---
+
+Since the 95\% confidence interval of odds ratio in both age groups do not cross the null value 1, we may reject the null hypothesis and conclude that vitamin A is statistically significantly effect for both age groups under $\alpha$ = 0.05.
+
+
+---
+
+
+**ii) Summarize your findings in a couple of sentences as if for a major journal. Be numeric 
+and do not use jargon.**
+
+
+---
+
+The odds of death in the Vitamin A group is 0.83 times the odds of death in the placebo group, among children less than 3 years old. The odds of death in the Vitamin A group is 0.52 times the odds of death in the placebo group, among children greater than 3 years old. The odds ratio in both groups are statistical significantly less than 1 under $\alpha$ = 0.05. These evidence suggest that Vitamin A may be a supplement with protective effects on death, assuming there is no confounding on the estimated association.
+
+---
+
+
+**iii) Now separately for each age stratum, estimate the odds ratio by using a logistic 
+regression of the binary survival indicator on vitamin A. Compare the estimated odds 
+ratios and confidence intervals to what were obtained in Step ii.**
+
+
+```{r}
+fit.logit.lowage <- logistic_reg() %>%
+    set_engine("glm") %>%
+    set_mode("classification") %>%
+    fit(as.factor(status) ~ trt, data = nepal621 %>% filter(agegp == "<3 years"))
+
+fit.logit.lowage %>% tidy %>% kable() # This summary is on the logOR scale
+fit.logit.lowage %>% tidy(exponentiate = TRUE) %>% kable() # We exponentiate to get on the OR scale
+exp(confint(fit.logit.lowage %>% extract_fit_engine()))
+
+fit.logit.highage <- logistic_reg() %>%
+    set_engine("glm") %>%
+    set_mode("classification") %>%
+    fit(as.factor(status) ~ trt, data = nepal621 %>% filter(agegp == "3+ years"))
+
+fit.logit.highage %>% tidy %>% kable() # This summary is on the logOR scale
+fit.logit.highage %>% tidy(exponentiate = TRUE) %>% kable() # We exponentiate to get on the OR scale
+exp(confint(fit.logit.highage %>% extract_fit_engine()))
+```
+
+
+---
+
+The estimated odds ratios and confidence intervals from the output of the logistic regression model are consistent with the calculation from step ii.
+
+---
