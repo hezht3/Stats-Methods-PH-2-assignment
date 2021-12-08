@@ -375,6 +375,6 @@ exp(confint(fit.logit.highage %>% extract_fit_engine()))
 
 ---
 
-The estimated odds ratios and confidence intervals from the output of the logistic regression model are consistent with the calculation from step ii.
+The estimated odds ratios and confidence intervals from the output of the logistic regression model are 0.83 [0.68, 1.00] and 0.52 [0.32, 0.83], for age less than 3 years old group and age greater or equal to 3 years old group, respectively. The results are consistent with the calculation from step ii.
 
 ---
