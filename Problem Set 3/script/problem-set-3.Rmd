@@ -258,7 +258,7 @@ confint(model1)
 
 $\hat{\beta_0} = 0.0217$: observed risk of death in the placebo group.
 
-$\hat{\beta_0} + \hat{beta_1} = 0.0170$: observed risk of death in the Vit A intervention group.
+$\hat{\beta_0} + \hat{\beta_1} = 0.0170$: observed risk of death in the Vit A intervention group.
 
 $\hat{\beta_1} = -0.0047$: observed risk difference of death in the Vit A intervention group compared with the placebo group.
 
