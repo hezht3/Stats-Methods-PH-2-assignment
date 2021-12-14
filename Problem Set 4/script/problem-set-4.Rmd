@@ -1,0 +1,261 @@
+---
+title: "Problem Set 4"
+author: "Zhengting (Johnathan) He"
+date: "2021/12/10"
+output: html_document
+---
+
+```{r "setup", include = FALSE}
+require("knitr")
+opts_knit$set(root.dir = "D:/OneDrive - Johns Hopkins/Course/140.622.81 - Statistical Methods in Public Health II/Problem Set/jhsphbiostat622-assignment/Problem Set 4")
+```
+
+
+```{r, message = FALSE}
+setwd("D:/OneDrive - Johns Hopkins/Course/140.622.81 - Statistical Methods in Public Health II/Problem Set/jhsphbiostat622-assignment/Problem Set 4")
+
+require(tidyverse)
+require(tidymodels)
+require(ResourceSelection)
+
+nepalibf <- read_csv("./data/nepalibf.csv")
+```
+
+
+**1. Compare boxplots for the continuous covariates (X’s) vs breastfeeding status:**
+
+
+```{r}
+nepalibf %>% 
+    mutate(bf = recode_factor(bf, `0` = "no", `1` = "yes")) %>% 
+    drop_na() %>% 
+    ggplot(aes(x = bf, y = age_chld)) +
+    stat_boxplot(geom = "errorbar", width = 0.5) +
+    geom_boxplot(aes(fill = bf)) +
+    xlab("Breast feeding") +
+    ylab("Age of child (months)") +
+    scale_x_discrete(labels = c("No", "Yes")) +
+    scale_fill_manual(values = c("#439fd3", "#f6b128"),
+                      guide = "none") +
+    theme_bw()
+```
+
+
+```{r}
+nepalibf %>% 
+    mutate(bf = recode_factor(bf, `0` = "no", `1` = "yes")) %>% 
+    drop_na() %>% 
+    ggplot(aes(x = bf, y = age_mom)) +
+    stat_boxplot(geom = "errorbar", width = 0.5) +
+    geom_boxplot(aes(fill = bf)) +
+    xlab("Breast feeding") +
+    ylab("Age of mom (years)") +
+    scale_x_discrete(labels = c("No", "Yes")) +
+    scale_fill_manual(values = c("#439fd3", "#f6b128"),
+                      guide = "none") +
+    theme_bw()
+```
+
+
+```{r}
+nepalibf %>% 
+    mutate(bf = recode_factor(bf, `0` = "no", `1` = "yes")) %>% 
+    drop_na() %>% 
+    ggplot(aes(x = bf, y = parity)) +
+    stat_boxplot(geom = "errorbar", width = 0.5) +
+    geom_boxplot(aes(fill = bf)) +
+    xlab("Breast feeding") +
+    scale_x_discrete(labels = c("No", "Yes")) +
+    scale_fill_manual(values = c("#439fd3", "#f6b128"),
+                      guide = "none") +
+    theme_bw()
+```
+
+
+**2. Tabulate the proportion breastfed by gender:**
+
+
+```{r}
+CT = xtabs(~ sex_chld + bf, data = nepalibf)
+addmargins(CT)
+prop.table(CT, margin = 1)
+addmargins(prop.table(CT, margin = 1), margin = 2)
+```
+
+
+**3. Briefly describe your findings**
+
+
+---
+
+Breast feeding probabilities were quite different across age of child based on crude estimates: children who were breast fed were younger (median [25th percentile, 75th percentile]: 50 [38, 59]) then those who were not breast fed (median [25th percentile, 75th percentile]: 19 [12, 28]), indicating age of child may be associated or be able to explain probabilities of breast feeding.
+
+Breast feeding probabilities were not quite difference across age of mom, number of live births a mother has had, or sex of child, based on crude estimates. It is noticable that the crude estimates may be confounded by other variables.
+
+---
+
+
+**4. Estimate the prevalence of breast feeding as a function of child’s age (centered at the mean age) and gender using logistic regression:**
+
+
+```{r}
+nepalibf <- nepalibf %>%
+    mutate(agechldc = age_chld - mean(age_chld))
+
+model1 <- logistic_reg() %>%
+    set_engine("glm") %>%
+    set_mode("classification") %>%
+    fit(as.factor(bf) ~ sex_chld + agechldc, data = nepalibf)
+model1 %>% tidy() %>% kable()
+model1 %>% tidy(exponentiate = TRUE) %>% kable()
+exp(confint(model1 %>% extract_fit_engine()))
+```
+
+
+**a) Define the variables and specify the logistic regression model.**
+
+
+---
+
++ Dependent variable: $Y$ = breast feed
+
++ Independent variable:
+
+  - $X_1$ = child's gender
+  
+  - $X_2$ = age of child (months) - 37.338 months (center at 37.338 months)
+  
++ Logistic regression model:
+
+$$
+log \, \frac{P(Y=1)}{1-P(Y=1)} = b_0 + b_1*X_1 + b_2*X_2
+$$
+
+---
+
+
+**b) Interpret the coefficients $\hat{\beta}$; also interpret $e^{\hat{\beta}}$**
+
+
+---
+
++ $\hat{\beta_0} = -0.92$: log odds of breast feeding among boys age at 37.338 months.
+
++ $\hat{\beta_1} = -0.31$: log odds ratio of breast feeding comparing girls to boys at the same age.
+
++ $\hat{\beta_2} = -0.19$: log odds of breast feeding decrease by 19% with 1 month increase in age among children of the same gender. (Log odds ratio of breast feeding comparing children at a certain age + 1 month versus children at a certain age is -0.19.)
+
++ $e^{\hat{\beta_0}} = 0.40$: odds of breast feeding among boys age at 37.338 months.
+
++ $e^{\hat{\beta_1}} = 0.73$: odds ratio of breast feeding comparing girls to boys at the same age.
+
++ $e^{\hat{\beta_2}} = 0.83$: odds of breast feeding decrease by 17% with 1 month increase in age among children of the same gender. (Odds ratio of breast feeding comparing children at a certain age + 1 month versus children at a certain age is 0.83.)
+
+---
+
+
+**5. Test the hypothesis that the association of breast feeding prevalence and child’s age is different for boys and girls (interaction model).**
+
+
+```{r}
+modelE <- logistic_reg() %>%
+    set_engine("glm") %>%
+    set_mode("classification") %>%
+    fit(as.factor(bf) ~ agechldc + sex_chld + sex_chld:agechldc, data = nepalibf)
+modelE %>% tidy() %>% kable()
+```
+
+
+**a) Is the evidence of a different age-prevalence relationship for boys and girls weak, moderate, or strong?**
+
+
+---
+
+According to the output of Model E, the odds of breast feeding decrease by 17% with 1 month increase in age among boys, and the odds of breast feeding decrease by 195 with 1 month increase in age among girls. Since the z-statistic associated with the coefficient of the interaction term is -1.007, and the p-value is 0.31, the coefficient of the interaction term is not statistically significant under $\alpha = 0.05$, indicating that the evidence of a different age-prevalence relationship for boys and girls is weak.
+
+---
+
+
+**b) Interpret the coefficients $\hat{\beta_3}$ for the interaction and $e^{\hat{\beta_3}}$.**
+
+
+---
+
++ $\hat{\beta_3} = -0.04$: difference in the log odds ratio (log {ratio of odds ratio}) of breast feeding comparing children at a certain age + 1 month to a certain age, among boys versus girls.
+
++ $e^{\hat{\beta_3}} = 0.96$: ratio of odds ratio of breast feeding comparing children at a certain age + 1 month to a certain age, among boys and girls.
+
++ Since the z-statistic associated with the coefficient of the interaction term is -1.007, and the p-value is 0.31, the coefficient of the interaction term is not statistically significant under $\alpha = 0.05$, indicating that the evidence of a different age-prevalence relationship for boys and girls is weak.
+
++ The results are consistent using Likelihood Ratio Test below.
+
+---
+
+
+```{r}
+anova(model1 %>% extract_fit_engine(), modelE %>% extract_fit_engine(), test = "LRT") %>% tidy() %>% kable()
+```
+
+
+**6. Display a graph of the estimated breast feeding prevalence -vs- child’s age with separate curves for boys and girls:**
+
+
+```{r}
+nepalibf <- nepalibf %>%
+    na.omit() %>% # Remove observations with missing data
+    mutate(sex_chld = recode_factor(sex_chld, `0` = "Male", `1` = "Female")) # Factor sex_chld
+
+modelD <- logistic_reg() %>%
+    set_engine("glm") %>%
+    set_mode("classification") %>%
+    fit(as.factor(bf) ~ sex_chld + age_chld, data = nepalibf)
+
+nepalibf <- nepalibf %>% mutate(phat = predict(modelD %>% extract_fit_engine(), type = "response"))
+
+nepalibf %>% 
+    ggplot(aes(x = age_chld, y = phat, color = sex_chld, shape = sex_chld)) +
+    geom_point() +
+    scale_color_manual(values = c("#439fd3", "#f6b128")) +
+    theme_bw()
+```
+
+
+**Which gender has the highest breastfeeding prevalence and by how much higher is it? (Base this on your interpretation of the graph only.)**
+
+
+---
+
+According to the graph, male has a higher predicted prevalence of breastfeeding than female. The difference of breastfeeding prevalence between male and female varies by child age, with lowest difference in the two-side tails of child age distribution, and highest difference in the middle of child age distribution. The mean difference is around 2%, with highest difference around 8%.
+
+---
+
+
+**7. Carry out a Hosmer-Lemeshow goodness-of- fit test for the model that includes gender and child’s age. Divide the predicted probabilities into 10 roughly equal groups for calculation of the chi-square comparing observed and expected events across the groups:**
+
+
+```{r}
+hoslem.test(nepalibf$bf, nepalibf$phat, g = 10)
+hoslem.test(nepalibf$bf, nepalibf$phat)$observed
+hoslem.test(nepalibf$bf, nepalibf$phat)$expected
+```
+
+
+**Interpret the Hosmer-Lemeshow P-value to determine whether there is evidence of poor fit for this model.**
+
+
+---
+
+According to the Hosmer-Lemeshow test, the test statistic $\chi^2$ = 6.0898, and p-value = 0.6405 under df = 8. Under $\alpha$ = 0.05, we fail to reject $H_0$ and conclude the model fit is good.
+
+---
+
+
+**8. Summarize in one page, as if for a journal article, the findings of your analysis of the association between the decision to breastfeed and characteristics of the child.**
+
+
+---
+
+According to the outputs above, there is an association between child's age, gender and breastfeeding. The odds ratio of breastfeeding decrease by 18% with 1 month increase in child's age, after adjusting for gender; and the association is statistically significant under $\alpha$ = 0.05. The odds ratio of breastfeeding comparing girls to boys is 0.73, after adjusting for child's age; however, the association is not statistically significant under $\alpha$ = 0.05. Gender does not statistical significantly modifies the association between child's age and breastfeeding. Goodness of fit test shows the main logistic regression model fit is good.
+
+---
+
